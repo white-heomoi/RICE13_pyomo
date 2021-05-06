@@ -1,0 +1,39 @@
+# This file created by conda-build 2.1.17
+# meta.yaml template originally from:
+# C:\projects\ipopt-feedstock\recipe, last modified Tue Nov 21 14:45:19 2017
+# ------------------------------------------------
+
+package:
+    name: ipopt
+    version: 3.11.1
+source:
+    fn: Ipopt-3.11.1-win64-intel13.1.zip
+    patches: ''
+    sha256: a2a82250574e8e557fdf668165ac5d60486e8c6e91c4228cd80a1f06c88c2757
+    url: https://www.coin-or.org/download/binary/Ipopt/Ipopt-3.11.1-win64-intel13.1.zip
+build:
+    features: ''
+    noarch: ''
+    noarch_python: false
+    number: '2'
+    string: '2'
+requirements:
+    build:
+        - toolchain 2.1.2 0
+    run: ''
+test:
+    files:
+        - test
+        - mytoy.nl
+    requires:
+        - toolchain
+about:
+    home: https://projects.coin-or.org/Ipopt/
+    license: EPL 1.0
+    license_file: LICENSE
+    summary: Software package for large-scale nonlinear optimization
+extra:
+    final: true
+    recipe-maintainers:
+        - pstjohn
+        - bluescarni
