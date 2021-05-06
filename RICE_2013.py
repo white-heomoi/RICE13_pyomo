@@ -13,13 +13,13 @@ import argparse
 # If script is run from IDE, comment out tis section and uncomment the next one.
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--T', default = 50, type = check_arg_T, help = 'Number of time periods \
+parser.add_argument('--T', default = 15, type = check_arg_T, help = 'Number of time periods \
                     to be considered (min = 2, max = 59)')
                     
 parser.add_argument('--tol', default = 7, type = check_arg_tol, help = 'Precision of the optimization \
                     algorithm expressed in number of decimal places (min = 7, max = 12)')
 
-parser.add_argument('--max_iter', default = 10000, type = check_arg_max_iter, help = 'Maximal number of iterations \
+parser.add_argument('--max_it', default = 10000, type = check_arg_max_iter, help = 'Maximal number of iterations \
                     to be made by the optimization algorithm (min = 500, max = 25000)')
                     
 parser.add_argument('--coop', default = "True", type = check_bool_arg, help = 'Establish if the full \
@@ -70,7 +70,7 @@ from os import getcwd
 
 data_path = getcwd()+'/Data/'
 
-solver_path = getcwd()+'/Solver/ipopt-3.11.1-2/Library/bin/ipopt'
+solver_path = getcwd()+'/Solver/ipopt.exe'
 
 results_path = getcwd()+'/Results/'
 
