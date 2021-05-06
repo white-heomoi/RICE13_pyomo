@@ -1,8 +1,8 @@
 # RICE13_pyomo
 RICE model (version 2013 ) in Python (Pyomo)
 
-This project aims at porting the [RICE model](https://en.wikipedia.org/wiki/DICE_model) (version 2013) by William Nordhaus and Paul Sztorc in Pyomo, a Python package that emulates the behaviour of GAMS and other AMLs.
-Differently from the DICE model whose version 2013 has already been ported to Pyomo and can be found [here](https://github.com/moptimization/pythondice2013implementation), the RICE model do not consider the world as a whole, disaggregating it into 12 countries\regions. This complicates the analysis but allows to study the problem of international environmental agreements (IEAs) formation from a game theoretical (coalitional) point of view.
+This project aims at porting the [RICE model](https://en.wikipedia.org/wiki/DICE_model) (version 2013) by William Nordhaus in Pyomo, a Python package that emulates the behaviour of GAMS and other AMLs.
+Differently from the DICE model whose version 2013 has already been ported to Pyomo and can be found [here](https://github.com/moptimization/pythondice2013implementation), the RICE model do not consider the world as a whole, disaggregating instead it into 12 countries\regions. This complicates the analysis but allows to study the problem of international environmental agreements (IEAs) formation from a game theoretical (coalitional) point of view.
 
 ## How to...
 The repository is self-contained and provides all the necessary data (in the folder _Data_) to run the model, together with the open-source non-linear solver IPOPT, version 3.9.1, in the folder _Solver_ (you may want to check if a newer version of the solver is available [here]( https://github.com/coin-or/Ipopt)). Data are taken from the Excell version of the RICE model 2013. Note that some Python packages are required to run the model, namely **Pyomo, Pandas, Numpy, Openpyxl, Math and Argparse**, together with their dependencies. 
