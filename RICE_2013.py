@@ -2,8 +2,8 @@ import math
 import pandas as pd
 import pyomo.environ as pe
 from Aux_func import model_res_to_dict, output_format, results_to_excel, coa_f, \
-                     check_arg_T, check_arg_tol, check_arg_max_iter, coa_to_analyse, \
-                     check_bool_arg
+                     check_arg_T, check_arg_tstep, check_arg_tol, check_arg_max_iter, \
+                     coa_to_analyse, check_bool_arg
 from openpyxl import load_workbook
 import argparse
 
@@ -15,6 +15,9 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--T', default = 15, type = check_arg_T, help = 'Number of time periods \
                     to be considered (min = 2, max = 59)')
+
+parser.add_argument('--tstep', default = 10, type = check_arg_tstep, help = 'Number of years \
+                    between each time period (Accepted values: 1, 2, 5, 10, 20)')
                     
 parser.add_argument('--tol', default = 7, type = check_arg_tol, help = 'Precision of the optimization \
                     algorithm expressed in number of decimal places (min = 7, max = 12)')
@@ -36,6 +39,7 @@ parser.add_argument('--coalitions', default = "none", type = str, help = 'Establ
 args = parser.parse_args()
 
 T = args.T
+tstep = args.tstep
 tol_a = args.tol
 max_iter = args.max_it
 if args.coop == 'True':
@@ -53,6 +57,7 @@ coa_c = args.coalitions
 # their predefined values. Tips are provided above.
 # 
 # T = 15
+# tstep = 10
 # tol_a = 6
 # max_iter = 10000
 # coop_c = True
@@ -177,14 +182,13 @@ for i in range(len(Sig_I_t.columns)):
 
 # Definition of Parameter values for all time periods
 
-tstep = 10                                  # In future varsions it should be possible to change it
 years = [2015+tstep*i for i in range(T)]
 y_as_int = [i for i in range(T)]
 countries = g_L.index
 
 # Add missing years to g_L(t) (growth equal to 0 for all countries in long period)
-mis_ind = [years[i] for i in range(len(g_L.loc['US']),T)]
-mis_dat = [0 for i in range(len(g_L.loc['US']),T)]
+mis_ind = [i for i in range(len(g_L.loc['US']),60)]
+mis_dat = [0 for i in range(len(g_L.loc['US']),60)]
 mis_g_L_dat = {i:mis_dat for i in g_L.index}
 mis_g_L = pd.DataFrame(data = mis_g_L_dat, index=mis_ind)
 
@@ -201,20 +205,37 @@ for i in countries:
     for j in range(T):
         if j==0:
             L.loc[i,j] = L_0.loc[i]
+        elif j==1:
+            L.loc[i,j] = L.loc[i,j-1]*math.exp(g_L.loc[i,j]*10)
         else:
-            L.loc[i,j] = L.loc[i,j-1]*math.exp(g_L.loc[i,j]*tstep)
+            if tstep==10:
+                L.loc[i,j] = L.loc[i,j-1]*math.exp(g_L.loc[i,j]*tstep)
+            elif tstep==20:
+                L.loc[i,j] = L.loc[i,j-1]*math.exp(g_L.loc[i,j*2]*tstep)
+            else:
+                L.loc[i,j] = L.loc[i,j-1]*math.exp(g_L.loc[i,j//int(10/tstep)+1]*tstep)
         
 # TFP (A(i,t))    
 A = pd.DataFrame(0, index=countries,columns=y_as_int)
 for i in countries:
     for j in range(T):
         if j==0:
-            A.loc[i,j] = A_0.loc[i]*math.exp(g_A.loc[i,j]*tstep)
+            A.loc[i,j] = A_0.loc[i]
+        elif j==1:
+            A.loc[i,j] = A_0.loc[i]*math.exp(g_A.loc[i,j]*10)
         else:
-            A.loc[i,j] = A.loc[i,j-1]*math.exp(g_A.loc[i,j]*tstep)
+            if tstep == 10:
+                A.loc[i,j] = A.loc[i,j-1]*math.exp(g_A.loc[i,j]*tstep)
+            elif tstep == 20:
+                A.loc[i,j] = A.loc[i,j-1]*math.exp(g_A.loc[i,j*2]*tstep)
+            else:
+                A.loc[i,j] = A.loc[i,j-1]*math.exp(g_A.loc[i,j//int(10/tstep)+1]*tstep)
 
 # Sigma growth (GSIG(i,t))
-g_sig = pd.DataFrame(0, index=countries,columns=y_as_int)
+if tstep !=20:
+    g_sig = pd.DataFrame(0, index=countries,columns=y_as_int)
+else:
+    g_sig = pd.DataFrame(0, index=countries,columns=[i for i in range(T*2)])
 for i in countries:
     for j in range(T):
         if j==0:
@@ -231,9 +252,14 @@ for i in countries:
         if j==0:
             sig.loc[i,j] = Sig_0.loc[i]
         elif j ==1:
-            sig.loc[i,j] = sig.loc[i,j-1]*math.exp(g_sig.loc[i,j]*tstep)*sig_15_add[i]
+            sig.loc[i,j] = sig.loc[i,j-1]*math.exp(g_sig.loc[i,j]*10)*sig_15_add[i]
         else:
-            sig.loc[i,j] = sig.loc[i,j-1]*math.exp(g_sig.loc[i,j]*tstep)
+            if tstep==10:
+                sig.loc[i,j] = sig.loc[i,j-1]*math.exp(g_sig.loc[i,j]*tstep)
+            elif tstep==20:
+                sig.loc[i,j] = sig.loc[i,j-1]*math.exp(g_sig.loc[i,j*2]*tstep)
+            else:
+                sig.loc[i,j] = sig.loc[i,j-1]*math.exp(g_sig.loc[i,j//int(10/tstep)+1]*tstep)
 
 # Emissions from land (ETREE(i,t)) - exogenous
 eland = pd.DataFrame(0, index=countries, columns=y_as_int)
@@ -241,22 +267,53 @@ for i in countries:
     for j in range(T):
         if j==0:
             eland.loc[i,j] = eland_0.loc[i]
-        else:
+        elif j ==1:
             eland.loc[i,j] = eland.loc[i,j-1]*(1-d_el.loc[i])
+        else:
+            eland.loc[i,j] = eland.loc[i,j-1]*(1-d_el.loc[i]*(tstep/10))
 
 # Exogenous radiative forcing (FORCOTH(t)) 
-f_ex = pd.Series([F_ex_1+0.1*(F_ex_2-F_ex_1)*j if j<12 else F_ex_1+0.36 for j in range(T)], index=y_as_int)
+f_ex = pd.Series([F_ex_1+0.1*(F_ex_2-F_ex_1)*j if j<11 else F_ex_1+0.36 for j in range(T)], index=y_as_int)
+
+if tstep != 10:   
+    from sklearn.linear_model import LinearRegression
+    from numpy import array as npa
+    y_var = npa(f_ex[:min(11,T)])
+    X_var = npa([i for i in range(min(11,T))])
+    X_var = X_var.reshape(-1,1)
+    mod = LinearRegression()
+    mod.fit(X_var, y_var)
+    switch_p = 10*10/tstep
+    f_ex = [mod.intercept_ + mod.coef_[0]*i*(tstep/10) if i <= switch_p else 0.3 for i in range(1,T+1)]
+    f_ex.insert(0, -0.06)
 
 # Backstop price (used to compute COST1(i,t))
-backstpr = pd.DataFrame(0, index=countries, columns=y_as_int)
+backstpr1 = pd.DataFrame(0, index=countries, columns=[i for i in range(60)])
 for i in countries:
-    for j in range(T):
+    for j in range(60):
         if j==0:
-            backstpr.loc[i,j] = pback.loc[i]
+            backstpr1.loc[i,j] = pback.loc[i]
         elif j==1:
-            backstpr.loc[i,j] = pback.loc[i]*0.1+0.9*pback.loc[i]*(1-d_ab.loc[i])
+            backstpr1.loc[i,j] = pback.loc[i]*0.1+0.9*pback.loc[i]*(1-d_ab.loc[i])
         else:
-            backstpr.loc[i,j] = pback.loc[i]*0.1+(backstpr.loc[i,j-1]-0.1*pback.loc[i])*(1-d_ab.loc[i])
+            backstpr1.loc[i,j] = pback.loc[i]*0.1+(backstpr1.loc[i,j-1]-0.1*pback.loc[i])*(1-d_ab.loc[i])
+
+if tstep == 10:
+    backstpr = backstpr1.loc[:,:T+1]    
+elif tstep == 20:
+    backstpr = pd.DataFrame(0, index=countries, columns=y_as_int)
+    backstpr.loc[:, 0] = backstpr1.loc[:,0]
+    for i in range(T):
+        backstpr.loc[:, i+1]  = backstpr1.loc[:,i*2+1]   
+else:
+    backstpr = pd.DataFrame(0, index=countries, columns=y_as_int)
+    backstpr.loc[:, 0] = backstpr1.loc[:,0]
+    n_per = int(10/tstep)
+    n_T = int(T/n_per)
+    for i in range(1, n_T+1):
+        for j in range(n_per):
+            backstpr.loc[:, (i-1)*n_per + j +1] =  backstpr1.loc[:,i] + \
+                        j*(backstpr1.loc[:,i+1] - backstpr1.loc[:,i])/n_per
 
 # Cost coefficient for abatement (COST1(i,t)) that varies during time
 theta1 = pd.DataFrame(0, index=countries, columns=y_as_int)
@@ -295,37 +352,147 @@ oth_var = pd.read_csv(data_path+'Var_country_independent_init.csv', sep=';', ind
 
 # Keep only relevant number of time periods (max T = 59)
 # Do not know why, but it imports the columns indexes as str instead of int (need to convert them)
-col_ind = [int(i) for i in U_init.columns]
 
-U_init = U_init[U_init.columns[1:T+1]]
-U_init.columns = col_ind[1:T+1]
-K_init = K_init[K_init.columns[1:T+1]]
-K_init.columns = col_ind[1:T+1]
-S_init = Sig_I_t[Sig_I_t.columns[1:T+1]]
-S_init.columns = col_ind[1:T+1]
-I_init = I_init[I_init.columns[1:T+1]]
-I_init.columns = col_ind[1:T+1]
-Q_init = Q_init[Q_init.columns[1:T+1]]
-Q_init.columns = col_ind[1:T+1]
-Y_init = Y_init[Y_init.columns[1:T+1]]
-Y_init.columns = col_ind[1:T+1]
-mu_init = mu_init[mu_init.columns[1:T+1]]
-mu_init.columns = col_ind[1:T+1]
-AB_init = AB_init[AB_init.columns[1:T+1]]
-AB_init.columns = col_ind[1:T+1]
-D_init = D_init[D_init.columns[1:T+1]]
-D_init.columns = col_ind[1:T+1]
-C_init = C_init[C_init.columns[1:T+1]]
-C_init.columns = col_ind[1:T+1]
-E_ind_init = E_ind_init[E_ind_init.columns[1:T+1]]
-E_ind_init.columns = col_ind[1:T+1]
-E_tot_init = pd.Series(oth_var.loc['E_tot'][oth_var.loc['E_tot'].index[1:T+1]])
-M_at_init = pd.Series(oth_var.loc['M_at'][oth_var.loc['M_at'].index[1:T+1]])
-M_up_init = pd.Series(oth_var.loc['M_up'][oth_var.loc['M_up'].index[1:T+1]])
-M_lo_init = pd.Series(oth_var.loc['M_lo'][oth_var.loc['M_lo'].index[1:T+1]])
-T_at_init = pd.Series(oth_var.loc['T_at'][oth_var.loc['T_at'].index[1:T+1]])
-T_lo_init = pd.Series(oth_var.loc['T_lo'][oth_var.loc['T_lo'].index[1:T+1]])
-F_init = pd.Series(oth_var.loc['F'][oth_var.loc['F'].index[1:T+1]])
+U_init = pd.read_csv(data_path+'U_init.csv', sep=';', index_col=0)
+U_init.columns = U_init.columns.astype(int)
+K_init = pd.read_csv(data_path+'K_init.csv', sep=';', index_col=0)
+K_init.columns = K_init.columns.astype(int)
+I_init = pd.read_csv(data_path+'I_init.csv', sep=';', index_col=0)
+I_init.columns = I_init.columns.astype(int)
+Q_init = pd.read_csv(data_path+'Q_init.csv', sep=';', index_col=0)
+Q_init.columns = Q_init.columns.astype(int)
+Y_init = pd.read_csv(data_path+'Y_init.csv', sep=';', index_col=0)
+Y_init.columns = Y_init.columns.astype(int)
+mu_init = pd.read_csv(data_path+'mu_init.csv', sep=';', index_col=0)
+mu_init.columns = mu_init.columns.astype(int)
+AB_init = pd.read_csv(data_path+'AB_init.csv', sep=';', index_col=0)
+AB_init.columns = AB_init.columns.astype(int)
+D_init = pd.read_csv(data_path+'D_init.csv', sep=';', index_col=0)
+D_init.columns = D_init.columns.astype(int)
+C_init = pd.read_csv(data_path+'C_init.csv', sep=';', index_col=0)
+C_init.columns = C_init.columns.astype(int)
+E_ind_init = pd.read_csv(data_path+'E_ind_init.csv', sep=';', index_col=0)
+E_ind_init.columns = E_ind_init.columns.astype(int)
+oth_var = pd.read_csv(data_path+'Var_country_independent_init.csv', sep=';', index_col=0)
+oth_var.columns = oth_var.columns.astype(int)
+
+# Keep only relevant number of time periods (max T = 59)
+# Do not know why, but it imports the columns indexes as str instead of int (need to convert them)
+
+if tstep == 10:
+    U_init = U_init[U_init.columns[1:T+1]]
+    K_init = K_init[K_init.columns[1:T+1]]
+    I_init = I_init[I_init.columns[1:T+1]]
+    Q_init = Q_init[Q_init.columns[1:T+1]]
+    Y_init = Y_init[Y_init.columns[1:T+1]]
+    mu_init = mu_init[mu_init.columns[1:T+1]]
+    AB_init = AB_init[AB_init.columns[1:T+1]]
+    D_init = D_init[D_init.columns[1:T+1]]
+    C_init = C_init[C_init.columns[1:T+1]]
+    E_ind_init = E_ind_init[E_ind_init.columns[1:T+1]]
+    E_tot_init = pd.Series(oth_var.loc['E_tot'][oth_var.loc['E_tot'].index[1:T+1]])
+    M_at_init = pd.Series(oth_var.loc['M_at'][oth_var.loc['M_at'].index[1:T+1]])
+    M_up_init = pd.Series(oth_var.loc['M_up'][oth_var.loc['M_up'].index[1:T+1]])
+    M_lo_init = pd.Series(oth_var.loc['M_lo'][oth_var.loc['M_lo'].index[1:T+1]])
+    T_at_init = pd.Series(oth_var.loc['T_at'][oth_var.loc['T_at'].index[1:T+1]])
+    T_lo_init = pd.Series(oth_var.loc['T_lo'][oth_var.loc['T_lo'].index[1:T+1]])
+    F_init = pd.Series(oth_var.loc['F'][oth_var.loc['F'].index[1:T+1]])    
+elif tstep == 20:
+    col_ind = [i for i in range(1,T*2+1,2)]
+    col_new_ind = [i for i in range(1,T+1)]
+    U_init = U_init[U_init.columns[col_ind]]
+    U_init.columns = col_new_ind
+    K_init = K_init[K_init.columns[col_ind]]
+    K_init.columns = col_new_ind
+    I_init = I_init[I_init.columns[col_ind]]
+    I_init.columns = col_new_ind
+    Q_init = Q_init[Q_init.columns[col_ind]]
+    Q_init.columns = col_new_ind
+    Y_init = Y_init[Y_init.columns[col_ind]]
+    Y_init.columns = col_new_ind
+    mu_init = mu_init[mu_init.columns[col_ind]]
+    mu_init.columns = col_new_ind
+    AB_init = AB_init[AB_init.columns[col_ind]]
+    AB_init.columns = col_new_ind
+    D_init = D_init[D_init.columns[col_ind]]
+    D_init.columns = col_new_ind
+    C_init = C_init[C_init.columns[col_ind]]
+    C_init.columns = col_new_ind
+    E_ind_init = E_ind_init[E_ind_init.columns[col_ind]]
+    E_ind_init.columns = col_new_ind
+    E_tot_init = pd.Series(oth_var.loc['E_tot'][oth_var.loc['E_tot'].index[col_ind]])
+    E_tot_init.index = col_new_ind
+    M_at_init = pd.Series(oth_var.loc['M_at'][oth_var.loc['M_at'].index[col_ind]])
+    M_at_init.index = col_new_ind
+    M_up_init = pd.Series(oth_var.loc['M_up'][oth_var.loc['M_up'].index[col_ind]])
+    M_up_init.index = col_new_ind
+    M_lo_init = pd.Series(oth_var.loc['M_lo'][oth_var.loc['M_lo'].index[col_ind]])
+    M_lo_init.index = col_new_ind
+    T_at_init = pd.Series(oth_var.loc['T_at'][oth_var.loc['T_at'].index[col_ind]])
+    T_at_init.index = col_new_ind
+    T_lo_init = pd.Series(oth_var.loc['T_lo'][oth_var.loc['T_lo'].index[col_ind]])
+    T_lo_init.index = col_new_ind
+    F_init = pd.Series(oth_var.loc['F'][oth_var.loc['F'].index[col_ind]])
+    F_init.index = col_new_ind
+else:
+    U_init0 = U_init[U_init.columns[1:T+1]]
+    U_init = U_init[U_init.columns[1:T+1]]
+    K_init0 = K_init[K_init.columns[1:T+1]]
+    K_init = K_init[K_init.columns[1:T+1]]
+    I_init0 = I_init[I_init.columns[1:T+1]]
+    I_init = I_init[I_init.columns[1:T+1]]
+    Q_init0 = Q_init[Q_init.columns[1:T+1]]
+    Q_init = Q_init[Q_init.columns[1:T+1]]
+    Y_init0 = Y_init[Y_init.columns[1:T+1]]
+    Y_init = Y_init[Y_init.columns[1:T+1]]
+    mu_init0 = mu_init[mu_init.columns[1:T+1]]
+    mu_init = mu_init[mu_init.columns[1:T+1]]
+    AB_init0 = AB_init[AB_init.columns[1:T+1]]
+    AB_init = AB_init[AB_init.columns[1:T+1]]
+    D_init0 = D_init[D_init.columns[1:T+1]]
+    D_init = D_init[D_init.columns[1:T+1]]
+    C_init0 = C_init[C_init.columns[1:T+1]]
+    C_init = C_init[C_init.columns[1:T+1]]
+    E_ind_init0 = E_ind_init[E_ind_init.columns[1:T+1]]
+    E_ind_init = E_ind_init[E_ind_init.columns[1:T+1]]
+    E_tot_init0 = pd.Series(oth_var.loc['E_tot'][oth_var.loc['E_tot'].index[1:T+1]])
+    M_at_init0 = pd.Series(oth_var.loc['M_at'][oth_var.loc['M_at'].index[1:T+1]])
+    M_up_init0 = pd.Series(oth_var.loc['M_up'][oth_var.loc['M_up'].index[1:T+1]])
+    M_lo_init0 = pd.Series(oth_var.loc['M_lo'][oth_var.loc['M_lo'].index[1:T+1]])
+    T_at_init0 = pd.Series(oth_var.loc['T_at'][oth_var.loc['T_at'].index[1:T+1]])
+    T_lo_init0 = pd.Series(oth_var.loc['T_lo'][oth_var.loc['T_lo'].index[1:T+1]])
+    F_init0 = pd.Series(oth_var.loc['F'][oth_var.loc['F'].index[1:T+1]]) 
+    E_tot_init = pd.Series(oth_var.loc['E_tot'][oth_var.loc['E_tot'].index[1:T+1]])
+    M_at_init = pd.Series(oth_var.loc['M_at'][oth_var.loc['M_at'].index[1:T+1]])
+    M_up_init = pd.Series(oth_var.loc['M_up'][oth_var.loc['M_up'].index[1:T+1]])
+    M_lo_init = pd.Series(oth_var.loc['M_lo'][oth_var.loc['M_lo'].index[1:T+1]])
+    T_at_init = pd.Series(oth_var.loc['T_at'][oth_var.loc['T_at'].index[1:T+1]])
+    T_lo_init = pd.Series(oth_var.loc['T_lo'][oth_var.loc['T_lo'].index[1:T+1]])
+    F_init = pd.Series(oth_var.loc['F'][oth_var.loc['F'].index[1:T+1]])
+
+    n_per = int(10/tstep)
+    n_T = int(T/n_per)
+    for i in range(n_T):
+        for j in range(n_per):
+            U_init.loc[:, (i)*n_per + j +1] = U_init0.loc[:,i+1] + j*(U_init0.loc[:,i+2] - U_init0.loc[:,i+1])/n_per
+            K_init.loc[:, (i)*n_per + j +1] = K_init0.loc[:,i+1] + j*(K_init0.loc[:,i+2] - K_init0.loc[:,i+1])/n_per
+            I_init.loc[:, (i)*n_per + j +1] = I_init0.loc[:,i+1] + j*(I_init0.loc[:,i+2] - I_init0.loc[:,i+1])/n_per
+            Q_init.loc[:, (i)*n_per + j +1] = Q_init0.loc[:,i+1] + j*(Q_init0.loc[:,i+2] - Q_init0.loc[:,i+1])/n_per
+            Y_init.loc[:, (i)*n_per + j +1] = Y_init0.loc[:,i+1] + j*(Y_init0.loc[:,i+2] - Y_init0.loc[:,i+1])/n_per
+            mu_init.loc[:, (i)*n_per + j +1] = mu_init0.loc[:,i+1] + j*(mu_init0.loc[:,i+2] - mu_init0.loc[:,i+1])/n_per
+            AB_init.loc[:, (i)*n_per + j +1] = AB_init0.loc[:,i+1] + j*(AB_init0.loc[:,i+2] - AB_init0.loc[:,i+1])/n_per
+            D_init.loc[:, (i)*n_per + j +1] = D_init0.loc[:,i+1] + j*(D_init0.loc[:,i+2] - D_init0.loc[:,i+1])/n_per
+            C_init.loc[:, (i)*n_per + j +1] = C_init0.loc[:,i+1] + j*(C_init0.loc[:,i+2] - C_init0.loc[:,i+1])/n_per
+            E_ind_init.loc[:, (i)*n_per + j +1] = E_ind_init0.loc[:,i+1] + j*(E_ind_init0.loc[:,i+2] - E_ind_init0.loc[:,i+1])/n_per
+            E_tot_init.loc[(i)*n_per + j +1] = E_tot_init0.loc[i+1] + j*(E_tot_init0.loc[i+2] - E_tot_init0.loc[i+1])/n_per
+            M_at_init.loc[(i)*n_per + j +1] = M_at_init0.loc[i+1] + j*(M_at_init0.loc[i+2] - M_at_init0.loc[i+1])/n_per
+            M_up_init.loc[(i)*n_per + j +1] = M_up_init0.loc[i+1] + j*(M_up_init0.loc[i+2] - M_up_init0.loc[i+1])/n_per
+            M_lo_init.loc[(i)*n_per + j +1] = M_lo_init0.loc[i+1] + j*(M_lo_init0.loc[i+2] - M_lo_init0.loc[i+1])/n_per
+            T_at_init.loc[(i)*n_per + j +1] = T_at_init0.loc[i+1] + j*(T_at_init0.loc[i+2] - T_at_init0.loc[i+1])/n_per
+            T_lo_init.loc[(i)*n_per + j +1] = T_lo_init0.loc[i+1] + j*(T_lo_init0.loc[i+2] - T_lo_init0.loc[i+1])/n_per
+            F_init.loc[(i)*n_per + j +1] = F_init0.loc[i+1] + j*(F_init0.loc[i+2] - F_init0.loc[i+1])/n_per
+
+S_init = I_init/Y_init
 
 # Functions to initialize variables (give them starting values)
 
@@ -391,7 +558,7 @@ m.S = pe.Var(m.mC, m.t, domain=pe.NonNegativeReals, bounds=(0,1), initialize = S
 m.I = pe.Var(m.mC, m.t, domain=pe.NonNegativeReals, initialize = I_init_f)                            # Investments (= savings)
 m.Q = pe.Var(m.mC, m.t, domain=pe.NonNegativeReals, initialize = Q_init_f)                            # Gross output
 m.Y = pe.Var(m.mC, m.t, domain=pe.NonNegativeReals, initialize = Y_init_f)                            # Net output (after damages and expenditures for abatement)
-m.mu = pe.Var(m.mC, m.t, domain=pe.NonNegativeReals, bounds=(0,1), initialize = mu_init_f)            # Abatement rate (the only control variable)
+m.mu = pe.Var(m.mC, m.t, domain=pe.NonNegativeReals, bounds=(0,1), initialize = mu_init_f)            # Abatement rate (control variable)
 m.AB = pe.Var(m.mC, m.t, domain=pe.NonNegativeReals, bounds=(0,1), initialize = AB_init_f)            # Abatement costs (proportional)
 m.D = pe.Var(m.mC, m.t, domain=pe.NonNegativeReals, initialize = D_init_f)                            # Environmental damages
 m.C = pe.Var(m.mC, m.t, domain=pe.NonNegativeReals, initialize = C_init_f)                            # Consumption
@@ -438,7 +605,7 @@ m.Q_eq = pe.Constraint(mC, t, rule=Q_eq)
 
 # Net output (after abatement costs and environmental damages)
 def Y_eq(m, mC, t):
-    return m.Y[mC, t] == m.Q[mC, t] - m.D[mC, t]*m.Q[mC, t]/(1+m.D[mC, t]**10) - m.AB[mC, t]
+    return m.Y[mC, t] == m.Q[mC, t] - m.D[mC, t]*m.Q[mC, t]/(1+m.D[mC, t]**tstep) - m.AB[mC, t]
 m.Y_eq = pe.Constraint(m.mC, m.t, rule=Y_eq)
 
 # Abatement costs as proportion of output

@@ -84,6 +84,15 @@ def check_arg_T(arg):
         raise argparse.ArgumentTypeError("Argument must be an integer < " + str(60) + "and > " + str(1))
     return f
 
+def check_arg_tstep(arg):
+    try:
+        f = int(arg)
+    except ValueError:    
+        raise argparse.ArgumentTypeError("Must be an integer number") 
+    if f not in [1, 2, 5, 10, 20]:
+        raise argparse.ArgumentTypeError("Argument must be one of the following integer values: 1, 2, 5, 10, 20")
+    return f
+
 def check_arg_tol(arg):
     '''Check that the given tolerance is of type int and inside bounds'''
     try:
