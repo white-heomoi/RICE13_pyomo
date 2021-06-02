@@ -16,6 +16,7 @@ Without providing any argument, the script will compute the solution of the mode
 | Option     | Type of value              | Description
 |------------ |----------------------------|----------------------------------------------------|
 |--T          |integer	                   |number of time periods (min = 2, max = 59, default = 15)|
+|--tstep     |integer                    |number of years between each time period (valid values: 1, 2, 5, 10, 20; default = 20)|
 |--tol	      |integer	                   |precision of the optimization algorithm (min = 7, max = 12, default = 7)|
 |--max_it	  |integer	                   |maximum number of iterations performed by the optimization algorithm, (min = 500, max = 25000, default = 10000)|   
 |--coop		    |string (no quotation marks) |Compute\do not compute the full cooperative solution (options are _True_ or _False_, default is _True_)|
@@ -42,9 +43,9 @@ The identifiers of the countries\regions are the followings:
 Remember that all options should be provided without quotation marks, except for the eventual list of countries\regions that must be enclosed in DOUBLE quotation marks. Only one coalition a time (or all) can be selected.
 Example of model run with parameters:
 
- …\RICE13_pyomo> python RICE_2013.py --T 25 --tol 8 --max_iter 2000 --coop False --nc True --coalitions "CHI, IND, AFR"
+ …\RICE13_pyomo> python RICE_2013.py --T 25 --tstep 5 --tol 8 --max_iter 2000 --coop False --nc True --coalitions "CHI, IND, AFR"
  
-This will compute the model for the fully non-cooperative case and for the coalition including China, India and Africa. 25 time periods (250 years) will be considered, while the optimization algorithm will have a precision till the eigth decimal place and will make a maximum of 2000 iterations.
+This will compute the model for the fully non-cooperative case and for the coalition including China, India and Africa. 25 time periods with five years time step (125 years) will be considered, while the optimization algorithm will have a precision till the eigth decimal place and will make a maximum of 2000 iterations.
  
 Results are automatically exported in Excell format in the folder _Results_. The file _coop.xlsx_ retains the results for the fully cooperative case, the file _non_coop.xlsx_ the ones for the fully non-cooperative case, whereas, if a single coalition is selected, results are stored in the file _coa1.xslx_, no matter which coalition of countries\regions is chosen. If the option _all_ for -–coalitions is selected, for each coalition will be created a file with increasing number: _coa1.xlsx_, _coa2.xlsx_,..., _coa4082.xlsx_. If a new simulation is run with modified parameters, it is opportune to move the results files currently in the _Results_ folder outside of it, otherwise they will be overwritten. 
 
