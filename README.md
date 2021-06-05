@@ -16,7 +16,7 @@ Without providing any argument, the script will compute the solution of the mode
 | Option     | Type of value              | Description
 |------------ |----------------------------|----------------------------------------------------|
 |--T          |integer	                   |number of time periods (min = 2, max = 59, default = 15)|
-|--tstep     |integer                    |number of years between each time period (valid values: 1, 2, 5, 10, 20; default = 20)|
+|--tstep     |integer                    |number of years between each time period (valid values: 1, 2, 5, 10, 20; default = 10)|
 |--tol	      |integer	                   |precision of the optimization algorithm (min = 7, max = 12, default = 7)|
 |--max_it	  |integer	                   |maximum number of iterations performed by the optimization algorithm, (min = 500, max = 25000, default = 10000)|   
 |--coop		    |string (no quotation marks) |Compute\do not compute the full cooperative solution (options are _True_ or _False_, default is _True_)|
