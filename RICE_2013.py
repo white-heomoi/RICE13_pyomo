@@ -4,6 +4,8 @@ import pyomo.environ as pe
 from Aux_func import model_res_to_dict, output_format, results_to_excel, coa_f, \
                      check_arg_T, check_arg_tstep, check_arg_tol, check_arg_max_iter, \
                      coa_to_analyse, check_bool_arg
+from Coa_analysis import c_f_dif, int_st, dif_ext, ext_st, stab_c, coa_names, \
+                         coa_int, coa_ext
 from openpyxl import load_workbook
 import argparse
 
@@ -185,6 +187,7 @@ for i in range(len(Sig_I_t.columns)):
 years = [2015+tstep*i for i in range(T)]
 y_as_int = [i for i in range(T)]
 countries = g_L.index
+N = len(countries)
 
 # Add missing years to g_L(t) (growth equal to 0 for all countries in long period)
 mis_ind = [i for i in range(len(g_L.loc['US']),60)]
@@ -679,37 +682,8 @@ def F_eq(m, t):
     return m.F[t] == eta*pe.log(m.M_at[t]/M_1900)/pe.log(2) + f_ex[t]
 m.F_eq = pe.Constraint(m.t, rule=F_eq)
 
-# Setting optimization algorithm specifications
-opt = pe.SolverFactory('ipopt', executable=solver_path)
-opt.options['max_iter']= max_iter
-opt.options['tol'] = tol
-
-if coop_c:
-    # Objective function (for the cooperative case)
-    def obj_eq(m):
-        return sum(m.U[i, j] for i in m.mC for j in m.t)
-    m.obj = pe.Objective(rule=obj_eq, sense=pe.maximize) 
-    
-    # Solving the optimization problem
-    opt.solve(m)
-    
-    # Delete the objective function for other eventual optimizations
-    del m.obj
-
-    ### Cooperative results ###
-    
-    # Data Frame of results for full cooperative case
-    
-    coop_dict = model_res_to_dict(m)
-    
-    res_coop = output_format(countries, coop_dict, t, T)
-    
-    #Save output on Excell file
-    
-    results_to_excel(res_coop, countries, results_path, 'coop.xlsx')
-
 # Transform dataset for variable initialization to dictionary that is required 
-# to use the var.set_values() method to reassign values to pyomo variables
+# to use the var.set_values() method to reassign values to pyomo variables.
 # Using the values of the last computed solution rather than the values of the
 # initialization seems to cause the algorithm not to converge. Maybe with a 
 # different solver from IPOPT this problem would not rise. 
@@ -733,9 +707,137 @@ T_at_init_dic = {int(j): T_at_init.loc[j] for j in T_at_init.index[:-1]}
 T_lo_init_dic = {int(j): T_lo_init.loc[j] for j in T_lo_init.index[:-1]}
 F_init_dic = {int(j): F_init.loc[j] for j in F_init.index[:-1]}
 
+# Setting optimization algorithm specifications
+opt = pe.SolverFactory('ipopt', executable=solver_path)
+opt.options['max_iter']= max_iter
+opt.options['tol'] = tol
+
+if coop_c or coa_c == 'all':
+    # Objective function (for the cooperative case)
+    def obj_eq(m):
+        return sum(m.U[i, j] for i in m.mC for j in m.t)
+    m.obj = pe.Objective(rule=obj_eq, sense=pe.maximize) 
+    
+    # Solving the optimization problem
+    opt.solve(m)
+    
+    # Delete the objective function for other eventual optimizations
+    del m.obj
+
+    ### Cooperative results ###
+    
+    # Data Frame of results for full cooperative case
+    
+    coop_dict = model_res_to_dict(m)
+    
+    res_coop = output_format(countries, coop_dict, t, T)
+
+    coop_TU = [sum(res_coop[i].loc['U',:]) for i in countries]
+    
+    #Save output on Excell file
+    
+    results_to_excel(res_coop, countries, results_path, 'coop.xlsx')
+    
+    # Stability Analysis
+    # (For full cooperation, only internal stability has to be computed)
+if coop_c and coa_c != 'all':
+    gr_coa = [1 for i in range(N)]
+    l_int_c = coa_int(gr_coa)
+    coa_res = []
+    for i in l_int_c:
+        m.U.set_values(U_init_dic)                                       
+        m.I.set_values(I_init_dic)
+        m.S.set_values(S_init_dic)                            
+        m.Q.set_values(Q_init_dic)                           
+        m.Y.set_values(Y_init_dic)                                       
+        m.AB.set_values(AB_init_dic)            
+        m.D.set_values(D_init_dic)                            
+        m.C.set_values(C_init_dic)                            
+        m.E_ind.set_values(E_ind_init_dic)                    
+        m.E_tot.set_values(E_tot_init_dic)                          
+        m.M_at.set_values(M_at_init_dic)        
+        m.M_up.set_values(M_up_init_dic)                                       
+        m.M_lo.set_values(M_lo_init_dic)                                       
+        m.T_at.set_values(T_at_init_dic)                                       
+        m.T_lo.set_values(T_lo_init_dic)                                       
+        m.F.set_values(F_init_dic)                                             
+        for pl in m.mC:
+            for tt in m.t:
+                m.mu[pl, tt].fix(pe.value(m.mu[pl, tt]))
+                m.S[pl, tt].fix(pe.value(m.S[pl, tt]))
+        coal = {countries[k]: i[k] for k in range(len(i))}
+        stop_rule = False
+        res_track = []
+        count_iter = 0
+        # This tolerance relates to the results of the control variable m.mu between
+        # successive best response iterations. The number should always be greater (less precision ) 
+        # than the provided tol (precision of the optimization algorithm) otherwise 
+        # convergence is likely not to be achieved for rounding errors. The difference should
+        # be of at least 2 orders of magnitude: e.g. 1e-5 and 1e-7
+        tol_2 = 0.00001
+        # Change the following number to increase\reduce the max number of iterations to
+        # find convergence among successive best response solutions. If the limit is
+        # reached, the given solution is likely not to be optimal. This number is necessary to 
+        # avoid infinite loops. 
+        iter_lim = 25           
+        while stop_rule == False and count_iter <= iter_lim:
+            res_track.append([])    
+            for player in m.mC:
+                for tt in m.t:
+                    m.mu[player, tt].fixed = False
+                    m.S[player, tt].fixed = False
+                if coal[player] == 1:
+                    obj_expr = sum(m.U[k, j]*coal[k] for k in m.mC for j in m.t)
+                else:
+                    obj_expr = sum(m.U[player, j] for k in m.mC for j in m.t)
+                m.obj = pe.Objective(expr = obj_expr, sense=pe.maximize) 
+                opt.solve(m)
+                del m.obj 
+                res_track[count_iter].append(pe.value(m.mu[player, :]))
+                for tt in m.t:
+                    m.mu[player, tt].fix(pe.value(m.mu[player, tt]))
+                    m.S[player, tt].fix(pe.value(m.S[player, tt]))
+            if count_iter != 0:
+                # Check on convergence is performed only on m.mu, not on m.S for 
+                # shortening computation time
+                stop_rule = all(res_track[-1][i][j] >= res_track[-2][i][j] - tol_2 and \
+                                res_track[-1][i][j] <= res_track[-2][i][j] + tol_2     \
+                                for i in range(len(mC)) for j in range(T-1))            
+            count_iter += 1
+        coa_n = [countries[j] for j in range(len(countries)) if i[j] == 1]
+        coa_res.append([model_res_to_dict(m), coa_n, count_iter])
+    
+    if coa_c != 'all':
+        res_coa = []
+        for i in coa_res:
+            res_coa.append(output_format(countries, i[0], t, T))
+        coa_TU = [[sum(coa_v[i].loc['U',:]) for i in countries] for coa_v in res_coa]
+        cc_TU = [coa_TU[i][i] for i in range(len(coa_TU))]
+        
+        exl_file = load_workbook(results_path+'coop.xlsx')
+        sheet = exl_file['global']
+        sheet['k12'] = 'Internally Stable'
+        sheet['k14'] = 'Externallly Stable'
+        sheet['k16'] = 'Fully Stable'
+        sheet['k18'] = 'PIS (Potential Internally Stable)'
+        
+        if all(coop_TU[i] >= cc_TU[i] for i in range(len(coop_TU))):
+            sheet['m12'] = "True"
+            sheet['m16'] = "True"
+        else:
+            sheet['m12'] = "False"
+            sheet['m16'] = "False"
+        sheet['M14'] = 'Not Applicable'
+            
+        if sum(coop_TU) >= sum(cc_TU):
+            sheet['m18'] = "True"
+        else:
+            sheet['m18'] = "False"
+        exl_file.save(filename = results_path+'coop.xlsx')
+
 # Non cooperative result (no coalition being formed)
 
-if nc_c:
+if nc_c or coa_c == 'all':
     # Resetting starting values (required only if cooperative solution has been computed)
     if coop_c == True:
         m.U.set_values(U_init_dic)                                       
@@ -811,7 +913,16 @@ if coa_c != 'none':
     if coa_c == 'all':
         coa = coa_f(len(countries))[len(countries):-1]
     else:
-        coa = [coa_to_analyse(coa_c)]
+        coa_m = [coa_to_analyse(coa_c)]
+        int_coa = coa_int(coa_m[0])
+        ext_coa = coa_ext(coa_m[0])
+        coa = int_coa.copy()
+        coa.append(coa_m[0])
+        for i in ext_coa:
+            coa.append(i)
+        main_coa_id = len(int_coa) 
+        members_id = [i for i in range(len(coa_m)) if coa_m[i] == 1]
+        non_members_id = [i for i in range(len(coa_m)) if coa_m[i] == 0]
         
     coa_res = []     
                         
@@ -875,30 +986,189 @@ if coa_c != 'none':
                                 res_track[-1][i][j] <= res_track[-2][i][j] + tol_2     \
                                 for i in range(len(mC)) for j in range(T-1))            
             count_iter += 1
-        coa_names = [countries[j] for j in range(len(countries)) if i[j] == 1]
-        coa_res.append([model_res_to_dict(m), coa_names, count_iter])
+        coa_n = [countries[j] for j in range(len(countries)) if i[j] == 1]
+        coa_res.append([model_res_to_dict(m), coa_n, count_iter])
     
     # Saving results of coalitions in excell files (one for each coalition)
+
+    if coa_c == 'all':    
+        ccc = 1
+        res_coa = []
+        for i in coa_res:
+            res_coa.append(output_format(countries, i[0], t, T))
+            file_name = 'coa'+str(ccc)+'.xlsx'
+            results_to_excel(res_coa[-1], countries, results_path, file_name)
+            book = load_workbook(results_path + 'coa' + str(ccc) + '.xlsx')
+            book.create_sheet(title='Members')
+            new_sheet = book['Members']
+            new_sheet['b2'] = 'Coalition Members'
+            new_sheet['b3'] = str(i[1])
+            new_sheet['b5'] = 'Number of iterations'
+            new_sheet['b6'] = str(i[2])
+            book.save(filename = results_path + 'coa' + str(ccc) + '.xlsx')
+            ccc += 1
+  
+        pay = []
+        for i in range(1,int(2**N)-(N+1)):       
+            xls = pd.ExcelFile(results_path+'coa'+str(i)+'.xlsx')
+            pay.append([])
+            U_c = []
+            for i in countries:
+                U_c.append(pd.read_excel(xls, i))
+                U_c[-1].set_index('Unnamed: 0', inplace=True)
+                pay[-1].append(float(U_c[-1].loc['U'].sum()))
+        
+        xls = pd.ExcelFile(results_path+'non_coop'+'.xlsx')
+        U_c = []
+        p_nc = []
+        for i in countries:
+            U_c.append(pd.read_excel(xls, i))
+            U_c[-1].set_index('Unnamed: 0', inplace=True)
+            p_nc.append(float(U_c[-1].loc['U'].sum()))
+        for i in range(N):
+            pay.insert(0, p_nc)
+        
+        xls = pd.ExcelFile(results_path+'non_coop'+'.xlsx')
+        U_c = []
+        p_coop = []
+        for i in countries:
+            U_c.append(pd.read_excel(xls, i))
+            U_c[-1].set_index('Unnamed: 0', inplace=True)
+            p_coop.append(float(U_c[-1].loc['U'].sum()))
+        pay.append(p_coop)
+        
+            
+        sps = [[1 if i == j else 0 for i in range(N)] for j in range(N)]
+        gr_coa = [1 for i in range(N)]
+        
+        coa_s = sps
+        for i in coal:
+            coa_s.append(i)
+        coa_s.append(gr_coa)
+        
+        int_diff = c_f_dif(coa_s, pay)
+        
+        int_c = int_st(int_diff, coa_s)
+        
+        ext_diff = dif_ext(coa_s, pay)
+        
+        ext_c = ext_st(ext_diff, coa_s)
+        
+        full_st = stab_c(coa_s, int_c[0], ext_c[0])
+        
+        full_st = [i for i in full_st if i != 0]
+        
+        #Write results on excel files
+        
+        # Cooperative case
+        exl_file = load_workbook(results_path+'coop.xlsx')
+        sheet = exl_file['global']
+        sheet['k12'] = 'Internally Stable'
+        sheet['k14'] = 'Externallly Stable'
+        sheet['k16'] = 'Fully Stable'
+        sheet['k18'] = 'PIS (Potential Internally Stable)'
+        
+        if gr_coa in int_c[0]:
+            sheet['m12'] = "True"
+        else:
+            sheet['m12'] = "False"
+        sheet['M14'] = 'Not Applicable'
+        
+        if gr_coa in full_st:
+            sheet['m16'] = "True"
+        else:
+            sheet['m16'] = "False"
+        
+        if gr_coa in int_c[1]:
+            sheet['m18'] = "True"
+        else:
+            sheet['m18'] = "False"
+        exl_file.save(filename = results_path+'coop.xlsx')
+        
+        # Other coalitions        
+        for i in range(len(coa_s[N:-1])):
+            exl_file = load_workbook(results_path+'coa'+str(i+1)+'.xlsx')
+            sheet = exl_file['global']
+            sheet['k12'] = 'Internally Stable'
+            sheet['k14'] = 'Externallly Stable'
+            sheet['k16'] = 'Fully Stable'
+            sheet['k18'] = 'PIS (Potential Internally Stable)'
+            
+            if coa_s[i] in int_c[0]:
+                sheet['m12'] = "True"
+            else:
+                sheet['m12'] = "False"
+        
+            if coa_s[i] in ext_c[0]:
+                sheet['m14'] = "True"
+            else:
+                sheet['m14'] = "False"
+            
+            if coa_s[i] in full_st:
+                sheet['m16'] = "True"
+            else:
+                sheet['m16'] = "False"
+            
+            if coa_s[i] in int_c[1] or coa_s[i] in int_c[0]:
+                sheet['m18'] = "True"
+            else:
+                sheet['m18'] = "False"
+                
+            exl_file.save(filename = results_path+'coa'+str(i+1)+'.xlsx')
     
-    ccc = 1
-    res_coa = []
-    for i in coa_res:
-        res_coa.append(output_format(countries, i[0], t, T))
-        file_name = 'coa'+str(ccc)+'.xlsx'
+    else:
+        res_coa = []
+        for i in coa_res:
+            res_coa.append(output_format(countries, i[0], t, T))
+        
+        file_name = coa_c+'.xlsx'
         results_to_excel(res_coa[-1], countries, results_path, file_name)
-        book = load_workbook(results_path + 'coa' + str(ccc) + '.xlsx')
+        book = load_workbook(results_path + coa_c + '.xlsx')
         book.create_sheet(title='Members')
         new_sheet = book['Members']
         new_sheet['b2'] = 'Coalition Members'
         new_sheet['b3'] = str(i[1])
         new_sheet['b5'] = 'Number of iterations'
         new_sheet['b6'] = str(i[2])
-        book.save(filename = results_path + 'coa' + str(ccc) + '.xlsx')
-        ccc += 1
-  
+        book.save(filename = results_path + coa_c + '.xlsx')   
+        
+        ac_TU = [[sum(coa_v[i].loc['U',:]) for i in countries] for coa_v in res_coa]
+        int_c_TU = [ac_TU[i][members_id[i]] for i in range(len(members_id))]
+        m_c_TU = [ac_TU[main_coa_id][i] for i in members_id]
+        m_nc_TU = [ac_TU[main_coa_id][i] for i in non_members_id]
+        ext_c_TU = [ac_TU[i][non_members_id[i]] for i in range(len(non_members_id))]
+                   
+        exl_file = load_workbook(results_path + coa_c + '.xlsx')
+        sheet = exl_file['global']
+        sheet['k12'] = 'Internally Stable'
+        sheet['k14'] = 'Externallly Stable'
+        sheet['k16'] = 'Fully Stable'
+        sheet['k18'] = 'PIS (Potential Internally Stable)'
+        full_1 = False
+        full_2 = False
+        
+        if all(m_c_TU[i] >= int_c_TU[i] for i in range(len(m_c_TU))):
+            sheet['m12'] = "True"
+            full_1 = True
+        else:
+            sheet['m12'] = "False"
 
-    
-    
+        if all(ext_c_TU[i] >= m_nc_TU[i] for i in range(len(m_nc_TU))):
+            sheet['m14'] = "True"
+            full_2 = True
+        else:
+            sheet['m14'] = "False"
+            
+        if full_1 and full_2:
+            sheet['m16'] = "True"
+        else:
+            sheet['m16'] = "False"            
+            
+        if sum(m_c_TU) >= sum(int_c_TU):
+            sheet['m18'] = "True"
+        else:
+            sheet['m18'] = "False"
+        exl_file.save(filename = results_path + coa_c + '.xlsx')        
     
     
     
