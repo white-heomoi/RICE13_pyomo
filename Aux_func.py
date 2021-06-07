@@ -136,6 +136,6 @@ def coa_to_analyse(arg):
             return list(all_c.values())
         else:
             raise ArgumentTypeError('You have probably inserted a wrong \
-                                             string of countries-regions in the --coalitions argument. \
+                                             string of countries-regions in the --coalition argument. \
                                              Valid countries-regions are: US, EU, JAP, RUS, EUR, CHI, IND, MEST, AFR, LAM, OHI, OTH')
 

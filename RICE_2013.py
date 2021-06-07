@@ -17,7 +17,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--T', default = 15, type = check_arg_T, help = 'Number of time periods to be considered (min = 2, max = 59)')
 
-parser.add_argument('--tstep', default = 10, type = check_arg_tstep, help = 'Number of years between each time period (Accepted values: 1, 2, 5, 10, 20)')
+parser.add_argument('--tstep', default = 10, type = check_arg_tstep, help = 'Number of years between each time period (Accepted values: 1, 2, 5, 10, 20). Remember that tstep*T <= 590.')
                     
 parser.add_argument('--tol', default = 7, type = check_arg_tol, help = 'Precision of the optimization algorithm expressed in number of decimal places (min = 7, max = 12)')
 
@@ -27,7 +27,7 @@ parser.add_argument('--coop', default = "True", type = check_bool_arg, help = 'E
 
 parser.add_argument('--nc', default = "True", type = check_bool_arg, help = 'Establish if the non-cooperative case is computed (True) or not (False): default is True')
                     
-parser.add_argument('--coalitions', default = "none", type = str, help = 'Establish which intermediate coalition (1<|S|<N) should be computed. Available options are "none", default, "all" (takes long time) and a string with desired countries-regions: US, EU, JAP, RUS, EUR, CHI, IND, MEST, AFR, LAM, OHI, OTH')
+parser.add_argument('--coalition', default = "none", type = str, help = 'Establish which intermediate coalition (1<|S|<N) should be computed. Available options are "none", default, "all" (takes long time) and a string with desired countries-regions: US, EU, JAP, RUS, EUR, CHI, IND, MEST, AFR, LAM, OHI, OTH')
 
 args = parser.parse_args()
 
