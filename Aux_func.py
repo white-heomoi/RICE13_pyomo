@@ -1,6 +1,6 @@
 from pyomo.core import Var
 import pandas as pd
-import argparse
+from argparse import ArgumentTypeError
 
 def model_res_to_dict(m):
     '''Function to save the output of the model in a 2-levels dictionary: first
@@ -10,11 +10,10 @@ def model_res_to_dict(m):
                        for v in m.component_objects(Var, active=True)}
     return res_dict
 
-
 def output_format(countries, out_unformat, t, T):
     '''Function to better formatting the model output and having it ready for
     being saved on excel files. The output is a list of lists with countries as
-    first element and a DataFrame with al variables as index and time periods
+    first element and a DataFrame with all variables as index and time periods
     as columns. Country independent variables are grouped under the "global tag" '''
     var_l = list(out_unformat.keys())
     var_c = var_l[:-7]
@@ -79,18 +78,18 @@ def check_arg_T(arg):
     try:
         f = int(arg)
     except ValueError:    
-        raise argparse.ArgumentTypeError("Must be an integer number")
+        raise ArgumentTypeError("Must be an integer number")
     if f < 2 or f > 59:
-        raise argparse.ArgumentTypeError("Argument must be an integer < " + str(60) + "and > " + str(1))
+        raise ArgumentTypeError("Argument must be an integer < " + str(60) + "and > " + str(1))
     return f
 
 def check_arg_tstep(arg):
     try:
         f = int(arg)
     except ValueError:    
-        raise argparse.ArgumentTypeError("Must be an integer number") 
+        raise ArgumentTypeError("Must be an integer number") 
     if f not in [1, 2, 5, 10, 20]:
-        raise argparse.ArgumentTypeError("Argument must be one of the following integer values: 1, 2, 5, 10, 20")
+        raise ArgumentTypeError("Argument must be one of the following integer values: 1, 2, 5, 10, 20")
     return f
 
 def check_arg_tol(arg):
@@ -98,9 +97,9 @@ def check_arg_tol(arg):
     try:
         f = int(arg)
     except ValueError:    
-        raise argparse.ArgumentTypeError("Must be an integer number")
+        raise ArgumentTypeError("Must be an integer number")
     if f < 7 or f > 12:
-        raise argparse.ArgumentTypeError("Argument must be an integer < " + str(13) + "and > " + str(6))
+        raise ArgumentTypeError("Argument must be an integer < " + str(13) + "and > " + str(6))
     return f
 
 def check_arg_max_iter(arg):
@@ -108,15 +107,15 @@ def check_arg_max_iter(arg):
     try:
         f = int(arg)
     except ValueError:    
-        raise argparse.ArgumentTypeError("Must be an integer number")
+        raise ArgumentTypeError("Must be an integer number")
     if f < 500 or f >25000:
-        raise argparse.ArgumentTypeError("Argument must be an integer < " + str(25001) + "and > " + str(499))
+        raise ArgumentTypeError("Argument must be an integer < " + str(25001) + "and > " + str(499))
     return f
 
 def check_bool_arg(arg):
     '''Check that the provided argument is a string equal to True or False and return appropriate boolean'''
     if str(arg) != 'False' and str(arg) != 'True':
-        raise argparse.ArgumentTypeError("--coop and --nc only accept True or False as given values!")
+        raise ArgumentTypeError("--coop and --nc only accept True or False as given values!")
     else:
         return str(arg)
 
@@ -136,7 +135,7 @@ def coa_to_analyse(arg):
         if problem == 0:
             return list(all_c.values())
         else:
-            raise argparse.ArgumentTypeError('You have probably inserted a wrong \
+            raise ArgumentTypeError('You have probably inserted a wrong \
                                              string of countries-regions in the --coalitions argument. \
                                              Valid countries-regions are: US, EU, JAP, RUS, EUR, CHI, IND, MEST, AFR, LAM, OHI, OTH')
 

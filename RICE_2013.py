@@ -4,8 +4,8 @@ import pyomo.environ as pe
 from Aux_func import model_res_to_dict, output_format, results_to_excel, coa_f, \
                      check_arg_T, check_arg_tstep, check_arg_tol, check_arg_max_iter, \
                      coa_to_analyse, check_bool_arg
-from Coa_analysis import c_f_dif, int_st, dif_ext, ext_st, stab_c, coa_names, \
-                         coa_int, coa_ext
+from Coa_analysis import c_f_dif, int_st, dif_ext, ext_st, stab_c, coa_int, \
+                         coa_ext
 from openpyxl import load_workbook
 import argparse
 
@@ -15,28 +15,19 @@ import argparse
 # If script is run from IDE, comment out tis section and uncomment the next one.
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--T', default = 15, type = check_arg_T, help = 'Number of time periods \
-                    to be considered (min = 2, max = 59)')
+parser.add_argument('--T', default = 15, type = check_arg_T, help = 'Number of time periods to be considered (min = 2, max = 59)')
 
-parser.add_argument('--tstep', default = 10, type = check_arg_tstep, help = 'Number of years \
-                    between each time period (Accepted values: 1, 2, 5, 10, 20)')
+parser.add_argument('--tstep', default = 10, type = check_arg_tstep, help = 'Number of years between each time period (Accepted values: 1, 2, 5, 10, 20)')
                     
-parser.add_argument('--tol', default = 7, type = check_arg_tol, help = 'Precision of the optimization \
-                    algorithm expressed in number of decimal places (min = 7, max = 12)')
+parser.add_argument('--tol', default = 7, type = check_arg_tol, help = 'Precision of the optimization algorithm expressed in number of decimal places (min = 7, max = 12)')
 
-parser.add_argument('--max_it', default = 10000, type = check_arg_max_iter, help = 'Maximal number of iterations \
-                    to be made by the optimization algorithm (min = 500, max = 25000)')
+parser.add_argument('--max_it', default = 10000, type = check_arg_max_iter, help = 'Maximal number of iterations to be made by the optimization algorithm (min = 500, max = 25000)')
                     
-parser.add_argument('--coop', default = "True", type = check_bool_arg, help = 'Establish if the full \
-                    cooperative case is computed (True) or not (False): default is True')
+parser.add_argument('--coop', default = "True", type = check_bool_arg, help = 'Establish if the full cooperative case is computed (True) or not (False): default is True')
 
-parser.add_argument('--nc', default = "True", type = check_bool_arg, help = 'Establish if the \
-                    non-cooperative case is computed (True) or not (False): default is True')
+parser.add_argument('--nc', default = "True", type = check_bool_arg, help = 'Establish if the non-cooperative case is computed (True) or not (False): default is True')
                     
-parser.add_argument('--coalitions', default = "none", type = str, help = 'Establish which \
-                    intermediate coalition (1<|S|<N) should be computed. Available options \
-                    are "none", default, "all" (takes long time) and a string with desired \
-                    countries-regions: US, EU, JAP, RUS, EUR, CHI, IND, MEST, AFR, LAM, OHI, OTH')
+parser.add_argument('--coalitions', default = "none", type = str, help = 'Establish which intermediate coalition (1<|S|<N) should be computed. Available options are "none", default, "all" (takes long time) and a string with desired countries-regions: US, EU, JAP, RUS, EUR, CHI, IND, MEST, AFR, LAM, OHI, OTH')
 
 args = parser.parse_args()
 
@@ -53,6 +44,10 @@ if args.nc == 'True':
 else:
     nc_c = False
 coa_c = args.coalitions
+
+if T*tstep > 590:
+    from argparse import ArgumentTypeError
+    raise ArgumentTypeError("The product of T and tstep must be lower than 590. When you choose a time step of 20 years, the maximal number of time periods (T) is 29.")
 
 # =============================================================================
 # If script is run from IDE, uncomment the following 5 lines and change, if you want, 
@@ -298,6 +293,8 @@ for i in countries:
             backstpr1.loc[i,j] = pback.loc[i]
         elif j==1:
             backstpr1.loc[i,j] = pback.loc[i]*0.1+0.9*pback.loc[i]*(1-d_ab.loc[i])
+        elif 2015 + j*tstep >= 2250:    # Assumption of a completely green technology cheaper than fossil fuels 
+            backstpr1.loc[i,j] = 0
         else:
             backstpr1.loc[i,j] = pback.loc[i]*0.1+(backstpr1.loc[i,j-1]-0.1*pback.loc[i])*(1-d_ab.loc[i])
 

@@ -64,11 +64,6 @@ def stab_c(coal, int_st, ext_st):
     stab = [i if i in ext_st and i in int_st else 0 for i in coal2]
     return stab
 
-def coa_names(name_l, coa_l):
-    ''' This function returns the name of coalition members with coalitions being represented by 0-1 lists'''
-    nam = [[name_l[j] for j in range(len(name_l)) if coa_l[i][j] == 1] for i in range(len(coa_l)) if type(coa_l[i]) != int]
-    return nam
-
 def coa_int(s_coa):
     ''' Given a coalition in form of a list of 0-1 values, it returns the list
     of coalitions (in the same form) required to evaluate the internal stability 
