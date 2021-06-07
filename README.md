@@ -83,6 +83,8 @@ In the files of results relative to coalitions there is an additional sheet, _me
 ### Analysis of coalition stability
 Another information reported on the output file(s) is the result of the stability analysis of coalitions. This result is not reported for the fully non-cooperative case since it has scarce meaning. For all other cases, the following table is shown in the _global_ sheet:
 
+|Type of stability| Result|
+|------------ |----------------------------|
 |Internallly Stable| True\False|
 |Externally Stable| True\False. For the fully cooperative case, the _Non Applicable_ message is applied.|
 |Fully Stable| True\False|
