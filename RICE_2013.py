@@ -944,7 +944,7 @@ if coa_c != 'none':
             for tt in m.t:
                 m.mu[pl, tt].fix(pe.value(m.mu[pl, tt]))
                 m.S[pl, tt].fix(pe.value(m.S[pl, tt]))
-        coal = {countries[k]: i[k] for k in range(len(i))}
+        coac = {countries[k]: i[k] for k in range(len(i))}
         stop_rule = False
         res_track = []
         count_iter = 0
@@ -965,8 +965,8 @@ if coa_c != 'none':
                 for tt in m.t:
                     m.mu[player, tt].fixed = False
                     m.S[player, tt].fixed = False
-                if coal[player] == 1:
-                    obj_expr = sum(m.U[k, j]*coal[k] for k in m.mC for j in m.t)
+                if coac[player] == 1:
+                    obj_expr = sum(m.U[k, j]*coac[k] for k in m.mC for j in m.t)
                 else:
                     obj_expr = sum(m.U[player, j] for k in m.mC for j in m.t)
                 m.obj = pe.Objective(expr = obj_expr, sense=pe.maximize) 
