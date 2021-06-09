@@ -1039,7 +1039,7 @@ if coa_c != 'none':
         gr_coa = [1 for i in range(N)]
         
         coa_s = sps
-        for i in coal:
+        for i in coa:
             coa_s.append(i)
         coa_s.append(gr_coa)
         
